@@ -10,12 +10,12 @@ KINECT_COLOR_HEIGHT = 540
 KINECT_COLOR_WIDTH = 960
 
 # NeveSetup
-file_ids = ['0', '1', '2', '3', '4']
-data_path = './data/one_shot_calib_data_NeveSetup/'
+# file_ids = ['0', '1', '2', '3', '4']
+# data_path = './data/one_shot_calib_data_NeveSetup/'
 
 # RadianSetup1
-# file_ids = ['0', '1', '2', '3', '4', '5', '6', '7']
-# data_path = './data/one_shot_calib_data_RadianSetup1/extrinsic/data/'
+file_ids = ['0', '1', '2', '3', '4', '5', '6', '7']
+data_path = './data/one_shot_calib_data_RadianSetup1/extrinsic/data/'
 
 # RadianSetup2
 # file_ids = ['0', '1', '2']
