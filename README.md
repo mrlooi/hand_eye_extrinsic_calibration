@@ -3,7 +3,7 @@
 Hand-eye calibration. Three images is enough to get good result.
 
 ## Algorithm Details
-![](./img/hand-eye calibration.png)
+![](./img/hand-eye%20calibration.png)
 
 ## Results
 ### Before
