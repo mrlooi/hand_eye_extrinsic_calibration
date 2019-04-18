@@ -1,0 +1,357 @@
+
+import json
+import open3d
+import numpy as np
+from transforms3d.euler import euler2mat, mat2euler
+from transforms3d.quaternions import quat2mat
+from copy import deepcopy
+import cv2
+import apriltag
+from scipy.optimize import minimize
+from scipy.linalg import orthogonal_procrustes
+
+inv = np.linalg.inv
+
+KINECT_COLOR_HEIGHT = 540
+KINECT_COLOR_WIDTH = 960
+
+board_2_tip = np.eye(4)
+# board_2_tip[:3,-1] = [-0.05,0.07,0.06]
+
+#read tip && ee
+json_file = "extrinsic/data/world_frame_to_ee_tip_0_tfs.json"
+with open(json_file, 'r') as f:
+    wf_2_eetip = json.load(f)
+
+wf_2_cam_gt_data = {
+     "position": [
+      1.5026177886697314, 
+      -0.43833321316199203, 
+      2.5773974481543376
+    ], 
+    "orientation": [
+      0.15361315314913665, 
+      -0.7109802579304441, 
+      -0.6750412709789273, 
+      0.12340727080643848
+    ]
+}
+
+
+wf_2_cam_gt = np.eye(4)
+wf_2_cam_gt[:3,:3] = quat2mat(wf_2_cam_gt_data["orientation"])
+wf_2_cam_gt[:3,-1] = wf_2_cam_gt_data["position"]
+
+board_2_camera_transforms = {
+    "0": np.array([
+        [-0.23996396,  0.91235413, -0.33170354,  0.42125338],
+        [-0.96941792, -0.20709876,  0.13167767, -0.27693117],
+        [ 0.05144127,  0.35315725,  0.93414868, -0.9182726 ],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],
+        ]),
+    "1": np.array([
+        [-0.24152055,  0.91518646, -0.32264774,  0.20508141],
+        [-0.96804637, -0.20410593,  0.14569484, -0.31481878],
+        [ 0.06748362,  0.34752627,  0.93523871, -0.90213705],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        ),
+    "2": np.array([
+        [-0.24696313,  0.91208632, -0.32727323,  0.30707225],
+        [-0.9678492 , -0.21553825,  0.12965795,  0.02395294],
+        [ 0.04771934,  0.34877186,  0.93599201, -0.93548784],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        ),
+    "3" : np.array([
+        [-0.24595506,  0.91987117, -0.30552111,  0.49855464],
+        [-0.96769113 ,-0.21498691 , 0.13173648 ,-0.04487479],
+        [ 0.05549755 , 0.32805132 , 0.94302829 ,-0.97295001],
+        [ 0.         , 0.         , 0.         , 1.        ],]
+        ),
+    "4" : np.array([
+        [-0.25537193,  0.96497812, -0.06002009,  0.16948174],
+        [-0.96587415, -0.25184575,  0.06050485, -0.11672021],
+        [ 0.04327005,  0.07342309,  0.99636176, -1.11457064],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        ),
+    "5" : np.array([
+        [-0.23978778,  0.90009336, -0.36377707,  0.32142509],
+        [-0.96932309, -0.20113615,  0.14126926, -0.14155759],
+        [ 0.05398681,  0.38649215,  0.92071127, -0.91486357],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        ),
+    "6" : np.array([
+        [ 0.0224104 ,  0.9552128 , -0.29506997,  0.11375086],
+        [-0.99961297,  0.02627512,  0.00913888,  0.0494345 ],
+        [ 0.01648257,  0.29475096,  0.95543194, -0.95939572],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        ),
+    "7" : np.array([
+        [ 0.32173544,  0.90648032, -0.27345884,  0.30388751],
+        [-0.94658805,  0.30142247, -0.11452322,  0.06906119],
+        [-0.02138641,  0.29569904,  0.95504173, -0.97481617],
+        [ 0.        ,  0.        ,  0.        ,  1.        ],]
+        )
+}
+
+def get_transformations(file_id):
+    """cam_2_board"""
+    board_2_cam = board_2_camera_transforms[file_id]
+    cam_2_board = inv(board_2_cam)
+
+    """wf_2_tip"""
+    transform_data = wf_2_eetip["world_frame_to_ee_tip_0_tfs"][file_id]
+    td = transform_data
+    quat = np.array([td["w_rot"], td["x_rot"], td["y_rot"], td["z_rot"]], dtype=np.float32)
+    t = np.array([td["x_pos"], td["y_pos"], td["z_pos"]], dtype=np.float32)
+    R = quat2mat(quat)
+    wf_2_tip = np.eye(4)
+    wf_2_tip[:3,:3] = R
+    wf_2_tip[:3,-1] = t
+    tip_2_wf = inv(wf_2_tip)
+
+    """ approximate board_2_tip""" 
+    global board_2_tip
+    #,-0.1]
+    # board_2_tip[:3,:3] = euler2mat(3.14, 0, 0)  # rotate x-axis by 180
+
+    return cam_2_board, board_2_tip, tip_2_wf
+
+
+def extractImgNPoints(cloud):
+    points = np.asarray(cloud.points)
+    color = np.asarray(cloud.colors)
+    img = color.reshape((KINECT_COLOR_HEIGHT, KINECT_COLOR_WIDTH, 3)) * 255
+    img = img.astype(np.uint8)
+    img = img[:,:,::-1]
+    return img, points
+
+# Used to produce filtered point cloud, only they are possible to display in open3d
+# cloud -> source cloud; new_cloud -> filtered cloud
+def RemoveNanData(cloud, new_cloud):
+    nan_idx = np.isnan(cloud.points)
+    wo_nan_idx = np.all(nan_idx == False, axis=1)
+
+    points = np.asarray(cloud.points)
+
+    new_points = points[wo_nan_idx]
+    
+    new_cloud.points = open3d.Vector3dVector(new_points)
+
+    has_color = cloud.has_colors()
+    if(has_color):
+        colors = np.asarray(cloud.colors)
+        new_colors = colors[wo_nan_idx]
+        new_cloud.colors = open3d.Vector3dVector(new_colors)
+
+
+def detectTagCorner(cloud, img, points_3d, cloud_name):
+    detector = apriltag.Detector()
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    detections, dimg = detector.detect(gray, True)  
+
+    if len(img.shape) == 3:
+        overlay = img // 2 + dimg[:, :, None] // 2
+    else:
+        overlay = gray // 2 + dimg // 2
+
+    for detection in detections:
+        # print("current tag {} in image".format(detection.tag_id))
+        opoints = []
+        points = np.round(detection.corners).astype(int)
+        try:
+            for point in points:
+                x, y = point
+                cv2.circle(overlay, (x, y), 4, (0,0,255), -1)
+                if np.any(np.isnan(points_3d[x+y*KINECT_COLOR_WIDTH])):
+                    raise ValueError
+                opoints.append(points_3d[x+y*KINECT_COLOR_WIDTH])
+
+        except ValueError:
+            print("Corner point in image is not registered by camera. It has 'nan' value, Please change the view")
+        
+        # cv2.imshow('Window: '+cloud_name, overlay) 
+        # while cv2.waitKey(5) < 0:
+        #     pass    
+
+    return np.asarray(opoints)
+
+def updateTrans(trans):
+    global board_2_tip
+    board_2_tip[:3,-1] = trans
+
+def updateRot(trans):
+    global board_2_tip
+    board_2_tip[:3,:3] = trans
+
+def getRotFrReg(pt1, pt2, mark_p1, mark_p2, color1, color2):
+    mark1_max = np.max(mark_p1)
+    mark1_min = np.min(mark_p1)
+    mark2_max = np.max(mark_p2)
+    mark2_min = np.min(mark_p2)
+
+    # print("************* in icp data **************\n")#just for debugging
+    c1 = open3d.PointCloud()
+    c2 = open3d.PointCloud()
+
+    #ignore the warning #Anyway we don't want points with 'nan' value
+    pt1_ls_id  = pt1 < mark1_max
+    pt1_gt_id = pt1 > mark1_min
+    pt1_qual = np.logical_and(pt1_gt_id, pt1_ls_id)
+    points1_idx = np.all(pt1_qual == True, axis=1)
+    c1.points = open3d.Vector3dVector(pt1[points1_idx])
+    c1.colors = open3d.Vector3dVector(color1[points1_idx])
+
+    pt2_ls_id  = pt2 < mark2_max
+    pt2_gt_id = pt2 > mark2_min
+    pt2_qual = np.logical_and(pt2_gt_id, pt2_ls_id)
+    points2_idx = np.all(pt2_qual == True, axis=1)
+    c2.points = open3d.Vector3dVector(pt2[points2_idx])
+    c2.colors = open3d.Vector3dVector(color2[points2_idx])
+
+    threshold = 0.01
+    t_init = np.eye(4)
+    reg = open3d.registration_icp(c2, c1, threshold, t_init, open3d.TransformationEstimationPointToPoint(), open3d.ICPConvergenceCriteria(max_iteration = 50))
+    # c2.transform(reg.transformation)
+    # open3d.draw_geometries([c1, c2])
+
+    return reg.transformation[:3,:3], reg.transformation[:3,3]
+
+def opt_trans(trans, dim, file_1, file_2):
+    global board_2_tip
+    if dim == "rot":
+        rot = euler2mat(trans[0], trans[1], trans[2])
+        board_2_tip[:3,:3] = rot
+    else:
+        board_2_tip[:3,-1] = trans
+
+    pcd_file = "extrinsic/data/cloud_xyzrgba/cloud_xyzrgba_%s.pcd"%(file_1)
+    cloud_1 = open3d.read_point_cloud_with_nan(pcd_file)
+
+    pcd_file = "extrinsic/data/cloud_xyzrgba/cloud_xyzrgba_%s.pcd"%(file_2)
+    cloud_2 = open3d.read_point_cloud_with_nan(pcd_file)
+
+    cam_2_board_1, board_2_tip_1, tip_2_wf_1 = get_transformations(file_1)
+    cam_2_tip_1 = np.dot(cam_2_board_1, board_2_tip_1)
+    cam_2_wf_1 = np.dot(cam_2_tip_1, tip_2_wf_1)
+
+    cam_2_board_2, board_2_tip_2, tip_2_wf_2 = get_transformations(file_2)
+    cam_2_tip_2 = np.dot(cam_2_board_2, board_2_tip_2)
+    cam_2_wf_2 = np.dot(cam_2_tip_2, tip_2_wf_2)
+    # b_sc1_2_sc2 = np.dot( cam_2_board_2, inv(cam_2_board_1))
+ 
+    #for experimenting with the clouds just transforming one cloud and will compare to the original (ground truth)
+    c1 = deepcopy(cloud_1)
+    c2 = deepcopy(cloud_1)
+    c2.transform(np.dot(cam_2_wf_1, inv(cam_2_wf_2)))
+
+    img1, pt1 = extractImgNPoints(c1)
+    img2, pt2 = extractImgNPoints(c2)
+
+    p1_3d = detectTagCorner(c1, img1, pt1, "one")
+    p2_3d = detectTagCorner(c2, img2, pt2, "two")
+
+    if dim == "rot":
+        # rot, scale = orthogonal_procrustes(p1_3d, p2_3d)
+        # euler_angle = np.asarray(mat2euler(rot))
+        rot_icp, trans_icp = getRotFrReg(pt1, pt2, p1_3d,p2_3d, np.asarray(c1.colors), np.asarray(c2.colors))
+        euler_angle = np.asarray(mat2euler(rot_icp))
+        return sumSq(euler_angle)
+    elif dim == 'd':
+        diff = np.sum(p1_3d - p2_3d, axis=0)/len(p1_3d)
+        return sumSq(diff)  
+        # return sumSq(trans_icp)
+
+
+def sumSq(arr):
+    return sum(arr**2)
+
+
+if __name__ == "__main__":
+    # init_t = np.array([-0.05,0.07,0.06])
+    init_t = np.array([0.0, 0.0, 0.0])
+    updateTrans(init_t)
+    x = np.deg2rad(-90)
+    y = np.deg2rad(0)
+    z = np.deg2rad(0)
+    # x, y, z = -2.9689421059634786, 0.04259118727932657, 1.548878411706393
+    init_r = np.array([x, y, z])
+    # init_r = np.array([0.0, 0, 0])
+    updateRot(euler2mat(init_r[0], init_r[1], init_r[2]))
+
+    file_list = ["2","6"]
+    # file_list = ["3","4","0","1","2" ]
+    # iteration = len(file_list)
+
+    for i in range(len(file_list)):
+        # break
+        f1_id = i
+        f2_id = (i+1)%len(file_list)
+        file_1 = file_list[f1_id]
+        file_2 = file_list[f2_id]
+
+        res1  = minimize(opt_trans, init_t, args = ('d', file_1, file_2), method="SLSQP", options={'disp':True})
+        updateTrans(res1.x)
+        print("updated trans", res1.x)
+        init_t = res1.x
+
+        res1  = minimize(opt_trans, init_r, args = ("rot", file_1, file_2), method="SLSQP", options={'disp':True})
+        print("first update rot", res1.x)
+        updateRot(euler2mat(res1.x[0],res1.x[1],res1.x[2]))
+        init_r = np.array([res1.x[0],res1.x[1],res1.x[2]])
+
+        res1  = minimize(opt_trans, init_t, args = ('d', file_1, file_2), method="SLSQP", options={'disp':True})
+        updateTrans(res1.x)
+        print("updated trans", res1.x)
+        init_t = res1.x
+
+        res1  = minimize(opt_trans, init_r, args = ("rot", file_1, file_2), method="SLSQP", options={'disp':True})
+        print("first update rot", res1.x)
+        updateRot(euler2mat(res1.x[0],res1.x[1],res1.x[2]))
+        init_r = np.array([res1.x[0],res1.x[1],res1.x[2]])
+        # break #just run it once
+
+    print("\n gt wf", wf_2_cam_gt)
+
+    file_1 = file_list[0] # visualizing results on first 2 scenes, better match -> better results
+    file_2 = file_list[1]
+
+    pcd_file = "extrinsic/data/cloud_xyzrgba/cloud_xyzrgba_%s.pcd"%(file_1)
+    cloud_1 = open3d.read_point_cloud_with_nan(pcd_file)
+
+    pcd_file = "extrinsic/data/cloud_xyzrgba/cloud_xyzrgba_%s.pcd"%(file_2)
+    cloud_2 = open3d.read_point_cloud_with_nan(pcd_file)
+
+    cam_2_board_1, board_2_tip_1, tip_2_wf_1 = get_transformations(file_1)
+    cam_2_tip_1 = np.dot(cam_2_board_1, board_2_tip_1)
+    cam_2_wf_1 = np.dot(cam_2_tip_1, tip_2_wf_1)
+
+    cam_2_board_2, board_2_tip_2, tip_2_wf_2 = get_transformations(file_2)
+    cam_2_tip_2 = np.dot(cam_2_board_2, board_2_tip_2)
+    cam_2_wf_2 = np.dot(cam_2_tip_2, tip_2_wf_2)
+    # b_sc1_2_sc2 = np.dot( cam_2_board_2, inv(cam_2_board_1))
+    
+    #more close the two axis frame -> more accurate calc
+    mesh_frame_gt = open3d.create_mesh_coordinate_frame(size = 0.5, origin = [0,0,0]) #original camera frame
+    wf_2_baord_gt = np.dot(inv(wf_2_cam_gt), inv(tip_2_wf_2))
+    mesh_frame_gt.transform(inv(wf_2_cam_gt))
+    # mesh_frame_gt.transform(inv(cam_2_wf_2))
+
+    mesh_frame1 = open3d.create_mesh_coordinate_frame(size = 0.8, origin = [0,0,0]) # tip frame (using gt)
+    # wf_2_baord1 = np.dot((cam_2_wf_1), inv(tip_2_wf_2))
+    mesh_frame1.transform(cam_2_wf_1)
+
+    #for displaying the results 
+    c1_filter = open3d.PointCloud()
+    c2_filter = open3d.PointCloud()
+    RemoveNanData(cloud_1, c1_filter)
+    RemoveNanData(cloud_2, c2_filter)
+    c1 = deepcopy(c1_filter)
+    # c1_filter.transform(np.dot(wf_2_cam_gt, inv(wf_2_cam_gt)))
+    # c1.transform(cam_2_wf_1)
+
+    print("cal result:", cam_2_wf_1)
+    """Experimenting with transformations """
+
+    c1_filter.transform(np.dot(cam_2_wf_1, inv(cam_2_wf_2))) #to obs distortion due to inaccuracy
+    open3d.draw_geometries([ c1, c1_filter, mesh_frame_gt, mesh_frame1])
+    # open3d.draw_geometries([ c1, c1_filter])
