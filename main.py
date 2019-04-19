@@ -9,22 +9,22 @@ import transformations as tr
 KINECT_COLOR_HEIGHT = 540
 KINECT_COLOR_WIDTH = 960
 
-# NeveSetup
-# file_ids = ['0', '1', '2', '3', '4']
-# data_path = './data/one_shot_calib_data_NeveSetup/'
+key = "NeveSetup"
+file_ids = ['0', '1', '2', '3', '4']
 
-# RadianSetup1
-file_ids = ['0', '1', '2', '3', '4', '5', '6', '7']
-data_path = './data/one_shot_calib_data_RadianSetup1/extrinsic/data/'
+# key = "RadianSetup1"
+# file_ids = ['0', '1', '2', '3', '4', '5', '6']#, '7']
 
-# RadianSetup2
+# key = "RadianSetup2"
 # file_ids = ['0', '1', '2']
-# data_path = './data/one_shot_calib_data_RadianSetup2/extrinsic/data/'
+
+data_path = './data/one_shot_calib_data_%s/extrinsic/data/'%(key)
 
 
 def main():
     tag_poses = {}
     for id in file_ids:
+        print("Reading from %s"%(data_path + 'cloud_xyzrgba/cloud_xyzrgba_%s.pcd'))
         pcd = o3d.read_point_cloud_with_nan(data_path + 'cloud_xyzrgba/cloud_xyzrgba_%s.pcd' % id)
         img, cloud_points = extract_image_and_points(pcd)
         points_3d_for_all = detect_tag_corners(cloud_points, img)
@@ -48,6 +48,10 @@ def main():
 
     T_wp_1 = np.matmul(T_we, T_ep)
     T_wp_2 = np.matmul(T_wc, T_cp)
+
+    out_T_wc_file = "%s_T_wc.npy"%(key)
+    np.save(out_T_wc_file, T_wc)
+    print("Saved T_wc to %s"%(out_T_wc_file))
 
     output_traj_for_evo('./data/evo/T_wp1.txt', T_wp_1)
     output_traj_for_evo('./data/evo/T_wp2.txt', T_wp_2)
@@ -284,7 +288,7 @@ def detect_tag_corners(cloud_points, img):
     gray = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
 
     detections, dimg = detector.detect(gray, True)
-    img_to_show = img[...]
+    img_to_show = img[...].copy()
 
     points_3d_for_all = []
     for detection in detections:
