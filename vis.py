@@ -3,6 +3,7 @@ import numpy as np
 from transforms3d.euler import euler2mat, mat2euler
 from transforms3d.quaternions import quat2mat
 
+
 def get_data(key="RadianSetup1"):
 
     if key == "RadianSetup2":
@@ -67,6 +68,7 @@ def get_data(key="RadianSetup1"):
     est_T_cw = np.linalg.inv(est_T_wc)
 
     return T_cw, est_T_cw
+
 
 if __name__ == '__main__':
     # file_ids = ['0', '1', '2']
