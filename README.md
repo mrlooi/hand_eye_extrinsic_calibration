@@ -7,15 +7,15 @@ Currently supports asymmetric circles and april tags
 __Asymmetric circles:__ `python main_asymm_circle.py`  
 ![](./img/asymm_circle_example.png)
 
-April Tags (make sure there is only __one__ tag in the view! Multi tag is not supported): `python main_april_tag.py`  
+__April Tags__ (make sure there is only __one__ tag in the view! Multi tag is not supported): `python main_april_tag.py`  
 ![](./img/april_tag_example.png)
 
 
 ## Requirements
+- numpy
 - opencv
 - apriltag (pip install apriltag)
 - open3d (with read_point_cloud_with_nan)
-- numpy
 - json
 - transforms3d
 
