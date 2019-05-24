@@ -1,7 +1,9 @@
 # Hand-eye Extrinsic Calibration
 
 Hand-eye calibration. 6-8 images/pointclouds with a calibration board are enough to get good result.  
-Currently supports asymmetric circles and april tags
+Supported Patterns:
+- Asymmetric circles
+- April tags
 
 ## Examples
 __Asymmetric circles:__ `python main_asymm_circle.py`  
