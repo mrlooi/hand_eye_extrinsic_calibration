@@ -1,6 +1,6 @@
 # Extrinsic Calibration
 
-Hand-eye calibration. Three images is enough to get good result.
+Hand-eye calibration. 6-8 images are enough to get good result.
 
 ## Algorithm Details
 ![](./img/hand-eye%20calibration.png)
