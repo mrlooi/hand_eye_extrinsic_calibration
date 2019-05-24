@@ -1,3 +1,6 @@
+"""
+Written by Vincent Looi and Jerry
+"""
 import numpy as np
 from transforms3d.quaternions import quat2mat, mat2quat
 
