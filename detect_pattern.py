@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 cv = cv2
 
-def detect_circle_pattern_corners(img, points, board_dims=(4,11), vis=True):
+def detect_circle_pattern_corners(img, points, board_dims=(4,11), vis=False):
     BOARD_W, BOARD_H = board_dims
 
     # board_corners_index = np.array([0,BOARD_W-1,2*BOARD_W*(BOARD_W-1)+BOARD_W-1,2*BOARD_W*(BOARD_W-1)]) # 4 corners to form square
