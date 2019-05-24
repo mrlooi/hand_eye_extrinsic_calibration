@@ -1,0 +1,7 @@
+*.npy
+*.txt
+*.pyc
+
+.vscode/
+.idea/
+__pycache__/
