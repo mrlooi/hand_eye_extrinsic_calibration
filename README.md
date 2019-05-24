@@ -5,6 +5,15 @@ Supported Patterns:
 - Asymmetric circles
 - April tags
 
+## Requirements
+You'll __need __ to install the python lib of our open3d fork to use this repo (at least for the pointcloud reading and board detection parts. The optimization bit can be independent).
+- __open3d-fork__ (with read_point_cloud_with_nan): http://10.0.9.33:8888/vision/open3d-fork
+- numpy
+- opencv
+- apriltag (pip install apriltag)
+- json
+- transforms3d
+
 ## Examples
 __Asymmetric circles:__ `python main_asymm_circle.py`  
 ![](./img/asymm_circle_example.png)
@@ -12,14 +21,6 @@ __Asymmetric circles:__ `python main_asymm_circle.py`
 __April Tags__ (make sure there is only __one__ tag in the view! Multi tag is not supported): `python main_april_tag.py`  
 ![](./img/april_tag_example.png)
 
-
-## Requirements
-- numpy
-- opencv
-- apriltag (pip install apriltag)
-- open3d (with read_point_cloud_with_nan)
-- json
-- transforms3d
 
 ## Algorithm Details
 ![](./img/hand-eye%20calibration.png)
