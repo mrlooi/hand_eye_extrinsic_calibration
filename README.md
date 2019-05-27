@@ -1,6 +1,7 @@
 # Hand-eye Extrinsic Calibration
 
-Hand-eye calibration. 6-8 images/pointclouds with a calibration board are enough to get good result.  
+Find the transformation between the robot (hand) and camera (eye).  
+In this repo, we show that __6-8 pairs of pointclouds (with calibration board) and robot_base-to-ee poses__ are enough to get a good result.  
 Supported Patterns:
 - Asymmetric circles
 - April tags
