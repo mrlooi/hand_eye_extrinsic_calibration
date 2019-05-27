@@ -1,6 +1,7 @@
 # Hand-eye Extrinsic Calibration
 
-Hand-eye calibration. 6-8 images/pointclouds with a calibration board are enough to get good result.  
+Find the transformation between the robot (hand) and camera (eye).  
+In this repo, we show that __6-8 pairs of pointclouds (with calibration board) and robot_base-to-ee poses__ are enough to get a good result. This assumes that the end-effector to board pose is not known (if known, just do one-shot calibration).  
 Supported Patterns:
 - Asymmetric circles
 - April tags
@@ -10,9 +11,11 @@ You'll __need __ to install the python lib of our open3d fork to use this repo (
 - __open3d-fork__ (with read_point_cloud_with_nan): http://10.0.9.33:8888/vision/open3d-fork
 - numpy
 - opencv
-- apriltag (pip install apriltag)
+- apriltag
 - json
-- transforms3d
+- transforms3d  
+
+``pip install numpy opencv-python apriltag json transforms3d``
 
 ## Examples
 __Asymmetric circles:__ `python main_asymm_circle.py`  
