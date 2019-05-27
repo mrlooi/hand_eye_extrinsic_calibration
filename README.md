@@ -1,7 +1,7 @@
 # Hand-eye Extrinsic Calibration
 
 Find the transformation between the robot (hand) and camera (eye).  
-In this repo, we show that __6-8 pairs of pointclouds (with calibration board) and robot_base-to-ee poses__ are enough to get a good result.  
+In this repo, we show that __6-8 pairs of pointclouds (with calibration board) and robot_base-to-ee poses__ are enough to get a good result. This assumes that the end-effector to board pose is not known (if known, just do one-shot calibration).  
 Supported Patterns:
 - Asymmetric circles
 - April tags
