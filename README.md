@@ -11,9 +11,11 @@ You'll __need __ to install the python lib of our open3d fork to use this repo (
 - __open3d-fork__ (with read_point_cloud_with_nan): http://10.0.9.33:8888/vision/open3d-fork
 - numpy
 - opencv
-- apriltag (pip install apriltag)
+- apriltag
 - json
-- transforms3d
+- transforms3d  
+
+``pip install numpy opencv-python apriltag json transforms3d``
 
 ## Examples
 __Asymmetric circles:__ `python main_asymm_circle.py`  
