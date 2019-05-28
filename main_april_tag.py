@@ -30,7 +30,7 @@ def read_ee_poses(file_name):
     return ee_poses
 
 
-def read_point_cloud(pcd_file, multiplier=1.0):
+def read_point_cloud(pcd_file, point_multiplier=1.0):
     if not osp.exists(pcd_file):
         return False, None
 
@@ -38,22 +38,31 @@ def read_point_cloud(pcd_file, multiplier=1.0):
     if cloud.is_empty():
         return False, None
 
-    cloud.points = o3d.Vector3dVector(np.asarray(cloud.points) * multiplier)
+    if point_multiplier is not None and point_multiplier != 1.0:
+        cloud.points = o3d.Vector3dVector(np.asarray(cloud.points) * point_multiplier)
 
     return True, cloud
 
 
 if __name__ == '__main__':
-    VIS_BOARD_DETECTION = False
+    """
+    INPUT START
+    """
 
     KINECT_COLOR_HEIGHT = 540
     KINECT_COLOR_WIDTH = 960
+    point_multiplier = 1.0  # IMPORTANT!!
 
     file_ids = ['0', '1', '2', '3', '4', '5', '6', '7']
 
     data_path = './data/april_tag'
     ee_pose_file = osp.join(data_path, 'world_frame_to_ee_tip_0_tfs.json')
     pcd_files = [osp.join(data_path, 'pcd_files/cloud_xyzrgba_%s.pcd'%(id)) for id in file_ids]
+    
+    VIS_BOARD_DETECTION = False
+    """
+    INPUT END
+    """
 
     ee_poses = read_ee_poses(ee_pose_file)
 
@@ -61,7 +70,7 @@ if __name__ == '__main__':
     for i, id in enumerate(file_ids):
         pcd_file = pcd_files[i]
         print("Reading from %s"%(pcd_file))
-        rt, pcd = read_point_cloud(pcd_file)
+        rt, pcd = read_point_cloud(pcd_file, point_multiplier)
         if not rt:
             continue
 

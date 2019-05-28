@@ -31,7 +31,8 @@ def read_ee_poses(file_name):
 
     return ee_poses
 
-def read_point_cloud(pcd_file, multiplier=1.0):
+
+def read_point_cloud(pcd_file, point_multiplier=1.0):
     if not osp.exists(pcd_file):
         return False, None
 
@@ -39,9 +40,11 @@ def read_point_cloud(pcd_file, multiplier=1.0):
     if cloud.is_empty():
         return False, None
 
-    cloud.points = o3d.Vector3dVector(np.asarray(cloud.points) * multiplier)
+    if point_multiplier is not None and point_multiplier != 1.0:
+        cloud.points = o3d.Vector3dVector(np.asarray(cloud.points) * point_multiplier)
 
     return True, cloud
+
 
 if __name__ == '__main__':
     import os, os.path as osp
@@ -53,12 +56,11 @@ if __name__ == '__main__':
     """
     COLOR_HEIGHT = 480
     COLOR_WIDTH = 640
-    COLOR_DIMS = COLOR_HEIGHT * COLOR_WIDTH
+    point_multiplier = 1. / 1000 # mm to m # IMPORTANT!! Points MUST BE NORMALIZED TO METRES. IF ALREADY IN METRES (e.g. Kinect), set to 1.0
+
     # COLOR_HEIGHT = 540
     # COLOR_WIDTH = 960
-
     ee_pose_file = "./data/asymm_circle/world_frame_to_ee_tip_0_tfs.json"
-    ee_poses = read_ee_poses(ee_pose_file)
 
     file_ids = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
     pcd_files = ['./data/asymm_circle/pcd_files/%s.pcd'%(id) for id in file_ids]
@@ -69,6 +71,9 @@ if __name__ == '__main__':
     INPUT END
     """
 
+    ee_poses = read_ee_poses(ee_pose_file)
+    COLOR_DIMS = COLOR_HEIGHT * COLOR_WIDTH
+
     tag_poses = {}
     for i, id in enumerate(file_ids):
         if id not in ee_poses:
@@ -77,7 +82,7 @@ if __name__ == '__main__':
 
         pcd_file = pcd_files[i]
 
-        rt, cloud = read_point_cloud(pcd_file, multiplier=1. / 1000)  # cm to m
+        rt, cloud = read_point_cloud(pcd_file, point_multiplier=point_multiplier)  # cm to m
         if not rt:
             print("File '%s': Could not read pcd '%s', skipping..."%(id, pcd_file))
             continue
@@ -105,24 +110,6 @@ if __name__ == '__main__':
         T_we[i, :, :] = ee_poses[id]
         T_cp[i, :, :] = tag_poses[id]
 
-    # R_gripper2base = np.empty((len(tag_poses), 3, 3), dtype=float)
-    # t_gripper2base = np.empty((len(tag_poses), 3), dtype=float)
-    # R_target2cam = np.empty((len(tag_poses), 3, 3), dtype=float)
-    # t_target2cam = np.empty((len(tag_poses), 3), dtype=float)
-    # for i, id in enumerate(tag_poses):
-    #     M_g2b = inv(ee_poses[id])
-    #     M_t2c = inv(tag_poses[id])
-    #     R_gripper2base[i, :, :] = M_g2b[:3, :3]
-    #     t_gripper2base[i] = M_g2b[:3, -1] 
-    #     R_target2cam[i, :, :] = M_t2c[:3, :3]
-    #     t_target2cam[i] = M_t2c[:3, -1] 
-
-    # R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(R_gripper2base, t_gripper2base, R_target2cam, t_target2cam)
-    # M_cam2gripper = np.eye(4)
-    # M_cam2gripper[:3, :3] = R_cam2gripper
-    # M_cam2gripper[:3, -1] = t_cam2gripper.squeeze()
-    # M_cam2base = np.dot(M_g2b, M_cam2gripper)
-
     T_wc, T_ep, residual = ping_pong_optimize(T_we, T_cp, 1000, 1e-6)
 
     print('T_wc:\n', T_wc)
@@ -134,7 +121,6 @@ if __name__ == '__main__':
     mesh_frame_est = o3d.create_mesh_coordinate_frame(size = 0.3, origin = [0,0,0]) #original camera frame
     mesh_frame_est.transform(T_cw)
     mesh_frame_est2 = o3d.create_mesh_coordinate_frame(size = 0.4, origin = [0,0,0]) #original camera frame
-    # mesh_frame_est2.transform(M_cam2base)
     
     filter_cloud_nan(cloud)  # filter nans so that cloud can be visualized in open3d
 
