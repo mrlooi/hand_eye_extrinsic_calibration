@@ -1,5 +1,5 @@
 """
-Written by Vincent Looi and Jerry
+Written by Vincent Looi and Jerry Yu Zhao
 """
 import numpy as np
 from transforms3d.quaternions import quat2mat, mat2quat
@@ -7,8 +7,8 @@ from transforms3d.quaternions import quat2mat, mat2quat
 def ping_pong_optimize(T_we, T_cp, max_iteration=1000, min_residual_change=1e-6):
     """
     T_we * T_ep = T_wc * T_cp. Optimize T_wc and T_ep alternatively.
-    :param T_we: multiple 4x4 transform matrix stacked by column
-    :param T_cp: multiple 4x4 transform matrix stacked by column
+    :param T_we: 4x4 transformation matrix, row-major
+    :param T_cp: 4x4 transformation matrix, row-major
     :param max_iteration:
     :param min_residual_change:
     :return: T_wc, T_ep, residual
@@ -46,8 +46,8 @@ def optimize_T_wc(T_we, T_cp, T_ep):
     e = ee tip frame
     c = camera frame
     p = tag plane frame
-    :param T_we: multiple 4x4 transform matrix stacked by column
-    :param T_cp: multiple 4x4 transform matrix stacked by column
+    :param T_we: 4x4 transformation matrix, row-major
+    :param T_cp: 4x4 transformation matrix, row-major
     :param T_ep:
     :return: T_wc, residual
     """
@@ -62,7 +62,7 @@ def optimize_T_wc(T_we, T_cp, T_ep):
     T_wc[:3, :3] = R_wc
     T_wc[:3, 3] = t_wc
 
-    delta = R_wc @ t_cp + t_wc.reshape(3, 1) - t_wp
+    delta = np.dot(R_wc, t_cp) + t_wc.reshape(3, 1) - t_wp
     residual = np.sum(np.linalg.norm(delta, axis=0)) / t_wp.shape[1]
 
     return T_wc, residual
@@ -75,8 +75,8 @@ def optimize_T_ep_umeyama(T_we, T_cp, T_wc):
     e = ee tip frame
     c = camera frame
     p = tag plane frame
-    :param T_we: multiple 4x4 transform matrix stacked by column
-    :param T_cp: multiple 4x4 transform matrix stacked by column
+    :param T_we: 4x4 transformation matrix, row-major
+    :param T_cp: 4x4 transformation matrix, row-major
     :param T_wc:
     :return: T_ep, residual
     """
@@ -94,12 +94,12 @@ def optimize_T_ep_umeyama(T_we, T_cp, T_wc):
     T_pe[:3, :3] = R_pe
     T_pe[:3, 3] = t_pe
 
-    delta = R_pe @ t_ew + t_pe.reshape(3, 1) - t_pw
+    delta = np.dot(R_pe, t_ew) + t_pe.reshape(3, 1) - t_pw
     residual = np.sum(np.linalg.norm(delta, axis=0)) / t_pw.shape[1]
 
     T_ep = np.eye(4, dtype=float)
     T_ep[:3, :3] = R_pe.T
-    T_ep[:3, 3] = -R_pe.T @ t_pe
+    T_ep[:3, 3] = np.dot(-R_pe.T, t_pe)
 
     return T_ep, residual
 
@@ -111,8 +111,8 @@ def optimize_T_ep_linear(T_we, T_cp, T_wc):
     e = ee tip frame
     c = camera frame
     p = tag plane frame
-    :param T_we: multiple 4x4 transform matrix stacked by column
-    :param T_cp: multiple 4x4 transform matrix stacked by column
+    :param T_we: 4x4 transformation matrix, row-major
+    :param T_cp: 4x4 transformation matrix, row-major
     :param T_wc:
     :return: T_ep, residual
     """
@@ -133,7 +133,7 @@ def optimize_T_ep_linear(T_we, T_cp, T_wc):
     for i in range(R_ep_all.shape[0]):
         q_ep_all[i, :] = mat2quat(R_ep_all[i])
 
-    cov_q_ep = q_ep_all.T @ q_ep_all
+    cov_q_ep = np.dot(q_ep_all.T, q_ep_all)
 
     ws, vs = np.linalg.eigh(cov_q_ep)
     q_ep = vs[:, -1]
